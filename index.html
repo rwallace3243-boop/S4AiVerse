@@ -519,13 +519,19 @@
   <div id="brandrow">
     <a class="s4mark" href="https://www.synergies4.com" target="_blank" rel="noopener" title="synergies4.com" style="pointer-events:auto"></a>
     <div>
-      <h1><span class="s4w">SYNERGIES<b>4</b></span> AiVERSE <button id="verchip" title="What's new in this build">v21 · what's new ▾</button></h1>
+      <h1><span class="s4w">SYNERGIES<b>4</b></span> AiVERSE <button id="verchip" title="What's new in this build">v22 · what's new ▾</button></h1>
       <div class="s4tag">Ai CONSULTING · S4-Ai UNIVERSE</div>
       <div id="vnback"></div>
       <div id="vernotes">
         <div id="vn-head"><span id="vn-title">BUILD HISTORY</span><button id="vn-close" title="Close">✕</button></div>
         <div class="vn-entry vn-current">
-          <div class="vn-v">v21 — this build</div>
+          <div class="vn-v">v22 — this build</div>
+          <ul>
+            <li>AI cartoon avatars are LIVE: the S4 avatar relay (s4-aiverse-avatarcreator) is connected — upload a photo and Luma draws the real thing.</li>
+          </ul>
+        </div>
+        <div class="vn-entry">
+          <div class="vn-v">v21</div>
           <ul>
             <li>Real AI cartoon avatars: your photo can now be redrawn by an image model (via the S4 avatar relay) into a true illustrated portrait — bold ink lines, cel shading, cosmic S4-blue background.</li>
             <li>While it draws: "Luma is drawing you…" state. If the relay isn't configured or fails, the local cartoon filter still works as fallback.</li>
@@ -944,7 +950,7 @@ const PREVIEWS = {
    Paste your deployed Cloudflare Worker URL here (see luma-avatar-worker.js +
    AiVerse-Cartoon-Avatar-Setup guide). Empty string = use the local canvas
    filter fallback (no AI, no cost, photo never leaves the browser). */
-const AVATAR_API_URL = '';
+const AVATAR_API_URL = 'https://s4-aiverse-avatarcreator.s4ai.workers.dev';
 
 const LIVE_URLS = {
   careerquest:{url:'https://appliedresume.com', label:'appliedresume.com'},
