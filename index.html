@@ -534,13 +534,19 @@
   <div id="brandrow">
     <a class="s4mark" href="https://www.synergies4.com" target="_blank" rel="noopener" title="synergies4.com" style="pointer-events:auto"></a>
     <div>
-      <h1><span class="s4w">SYNERGIES<b>4</b></span> AiVERSE <button id="verchip" title="What's new in this build">v27 · what's new ▾</button></h1>
+      <h1><span class="s4w">SYNERGIES<b>4</b></span> AiVERSE <button id="verchip" title="What's new in this build">v28 · what's new ▾</button></h1>
       <div class="s4tag">AI CONSULTING · S4-AI UNIVERSE</div>
       <div id="vnback"></div>
       <div id="vernotes">
         <div id="vn-head"><span id="vn-title">BUILD HISTORY</span><button id="vn-close" title="Close">✕</button></div>
         <div class="vn-entry vn-current">
-          <div class="vn-v">v27 — this build</div>
+          <div class="vn-v">v28 — this build</div>
+          <ul>
+            <li>Retro-4-Real™, the crossover app, now gathers with THREE families: Learning, Life & Team Apps, and Business — click any of those color keys and R4R shows up.</li>
+          </ul>
+        </div>
+        <div class="vn-entry">
+          <div class="vn-v">v27</div>
           <ul>
             <li>The color keys (bottom-left) are now live: click a family and its planets gather into a neat row for easy clicking — everything else dims. Click again (or Esc) to release.</li>
           </ul>
@@ -784,7 +790,7 @@ const NODES = [
     why:'The flywheel: learners become builders, builders ship products, products create revenue — and fund more learners.',
   },
   {
-    id:'r4r', fam:'apps', angle:108, r:0.94,
+    id:'r4r', fam:'apps', fams:['learning','business'], angle:108, r:0.94,  /* crossover: gathers with Learning, Life & Team Apps, AND Business */
     name:'Retro-4-Real™', card:'Retrospectives that actually change things — for individuals, teams, and businesses.',
     hook:'The crossover app: stop admiring problems, start fixing them — at any scale.',
     do:'Run AI-powered retrospectives that surface what\'s really going on — in your own week, your team\'s sprint, or your business — turn it into commitments, and track the follow-through.',
@@ -1310,13 +1316,14 @@ function renderLegend(){
 renderLegend();
 
 /* ---- family focus: click a legend key → that family's tiles gather in a neat row ---- */
+const inFam = (n, fam) => n.fam===fam || (n.fams||[]).includes(fam);  /* crossover apps live in several families */
 function setFamFocus(fam){
   famFocus = fam;
   if(fam && selected) closePanel();               /* gathering a family releases any open planet */
   legend.querySelectorAll('span').forEach(sp=>sp.classList.toggle('on', sp.dataset.fam===famFocus));
   NODES.forEach(n=>{
-    nodeEls[n.id].classList.toggle('famdim', !!famFocus && n.fam!==famFocus);
-    nodeEls[n.id].classList.toggle('famlit', !!famFocus && n.fam===famFocus);
+    nodeEls[n.id].classList.toggle('famdim', !!famFocus && !inFam(n, famFocus));
+    nodeEls[n.id].classList.toggle('famlit', !!famFocus && inFam(n, famFocus));
   });
   for(const {l,line} of linkEls) line.classList.toggle('dimmed', !!famFocus);
 }
@@ -1396,9 +1403,9 @@ function frame(ts){
 
   /* family focus: members glide into a tidy centered grid; the rest sit dimmed in orbit */
   {
-    const mem = famFocus ? NODES.filter(n=>n.fam===famFocus) : [];
+    const mem = famFocus ? NODES.filter(n=>inFam(n, famFocus)) : [];
     NODES.forEach(n=>{
-      const isMem = famFocus && n.fam===famFocus && !selected;
+      const isMem = famFocus && inFam(n, famFocus) && !selected;
       if(n.ff===undefined) n.ff=0;
       n.ff += ((isMem?1:0) - n.ff)*Math.min(1, dt*3.2);
       if(n.ff>0.001 && isMem){
