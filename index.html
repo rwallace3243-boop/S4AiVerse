@@ -424,6 +424,9 @@
   #onb-photo.set{border-style:solid;box-shadow:0 0 22px rgba(139,92,246,.7);font-size:0;padding:0}
   #onb-photo.busy{border-style:solid;border-color:#DB88B2;font-size:9px;color:#fdeef6;
     animation:orbBreathe 1.8s ease-in-out infinite;background-image:none !important}
+  #onb-msg{display:none;margin:8px auto 0;max-width:290px;text-align:center;font-size:10.5px;
+    line-height:1.5;color:#DB88B2;text-shadow:0 0 8px rgba(138,84,165,.5)}
+  #onb-msg.show{display:block}
   #onb input[type=text]{
     width:100%;padding:9px 12px;border-radius:9px;border:1px solid rgba(148,163,216,.3);
     background:rgba(148,163,216,.07);color:var(--ink);font-family:inherit;font-size:12.5px;outline:none;
@@ -519,13 +522,26 @@
   <div id="brandrow">
     <a class="s4mark" href="https://www.synergies4.com" target="_blank" rel="noopener" title="synergies4.com" style="pointer-events:auto"></a>
     <div>
-      <h1><span class="s4w">SYNERGIES<b>4</b></span> AiVERSE <button id="verchip" title="What's new in this build">v22 · what's new ▾</button></h1>
+      <h1><span class="s4w">SYNERGIES<b>4</b></span> AiVERSE <button id="verchip" title="What's new in this build">v24 · what's new ▾</button></h1>
       <div class="s4tag">Ai CONSULTING · S4-Ai UNIVERSE</div>
       <div id="vnback"></div>
       <div id="vernotes">
         <div id="vn-head"><span id="vn-title">BUILD HISTORY</span><button id="vn-close" title="Close">✕</button></div>
         <div class="vn-entry vn-current">
-          <div class="vn-v">v22 — this build</div>
+          <div class="vn-v">v24 — this build</div>
+          <ul>
+            <li>Nothing resets (browser edition): your name, choices, and cartoon avatar now survive refresh — remembered by your own browser on this device only. Real S4-AiVerse accounts are the next step.</li>
+          </ul>
+        </div>
+        <div class="vn-entry">
+          <div class="vn-v">v23</div>
+          <ul>
+            <li>Fair-use limit: 2 Ai portraits per person per hour (auto-resets an hour after your first draw). Luma tells you when you've hit it and how long until she'll draw again.</li>
+            <li>If the Ai artist is unavailable for any reason, you now see a friendly note instead of silence — sketch mode still works.</li>
+          </ul>
+        </div>
+        <div class="vn-entry">
+          <div class="vn-v">v22</div>
           <ul>
             <li>AI cartoon avatars are LIVE: the S4 avatar relay (s4-aiverse-avatarcreator) is connected — upload a photo and Luma draws the real thing.</li>
           </ul>
@@ -623,6 +639,7 @@
     <div class="onb-lbl" style="text-align:center">Your photo → your S4 avatar</div>
     <div id="onb-photo" onclick="document.getElementById('onb-file').click()">tap to add a photo<br>(you'll become a cartoon avatar)</div>
     <input type="file" id="onb-file" accept="image/*" style="display:none">
+    <div id="onb-msg"></div>
     <div class="onb-lbl">First name</div>
     <input type="text" id="onb-name" placeholder="What should I call you?" maxlength="24">
     <div class="onb-lbl">Role · pick all that apply</div>
@@ -1552,7 +1569,11 @@ async function aiCartoon(img){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({image:payload}), signal:ctrl.signal});
     const data=await resp.json();
-    if(!resp.ok || !data.image) throw new Error(data.error||'avatar service error');
+    if(!resp.ok || !data.image){
+      const err=new Error(data.message||data.error||'avatar service error');
+      err.rateLimited=(resp.status===429); err.minutesLeft=data.minutesLeft;
+      throw err;
+    }
     return data.image;
   } finally { clearTimeout(kill); }
 }
@@ -1561,12 +1582,20 @@ document.getElementById('onb-file').addEventListener('change', e=>{
   const img=new Image();
   img.onload=async ()=>{
     const ph=document.getElementById('onb-photo');
+    const msg=document.getElementById('onb-msg');
+    msg.classList.remove('show'); msg.textContent='';
     if(AVATAR_API_URL){
       ph.classList.remove('set'); ph.classList.add('busy');
       ph.style.backgroundImage='none';
       ph.innerHTML='Luma is drawing you…<br>(a few seconds)';
       try{ setAvatar(await aiCartoon(img)); return; }
-      catch(err){ console.warn('AI avatar failed, using local cartoon filter:', err); }
+      catch(err){
+        console.warn('AI avatar failed, using local cartoon filter:', err);
+        msg.textContent = err.rateLimited
+          ? `Luma's already drawn you twice this hour — sketch mode for now. Full portraits are back in ~${err.minutesLeft||60} min.`
+          : `Luma's drawing hand is resting — using sketch mode for now.`;
+        msg.classList.add('show');
+      }
     }
     setAvatar(lumaStylize(img));   /* fallback: local toon filter, photo never leaves the page */
   };
@@ -1585,7 +1614,48 @@ document.getElementById('onb-go').addEventListener('click', ()=>{
   PROFILE.done = true;
   closeOnb();
   moldUniverse();
+  saveProfile();
 });
+
+/* ===== "Nothing resets" (browser edition): profile + avatar survive refresh on
+   this device via localStorage. Stored only in the visitor's own browser —
+   nothing leaves it. Real S4 accounts will replace this. ===== */
+function saveProfile(){
+  try{
+    let photo = PROFILE.photo;
+    if(photo && photo.length > 900000){          /* shrink big AI portraits to fit storage */
+      const im = new Image();
+      im.onload = ()=>{
+        const c=document.createElement('canvas'); c.width=c.height=512;
+        const x=c.getContext('2d'); x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+        x.drawImage(im,0,0,512,512);
+        try{ localStorage.setItem('s4_profile', JSON.stringify({...PROFILE, photo:c.toDataURL('image/jpeg',0.85)})); }catch(e){}
+      };
+      im.src = photo;
+      return;
+    }
+    localStorage.setItem('s4_profile', JSON.stringify(PROFILE));
+  }catch(e){}
+}
+function loadProfile(){
+  try{
+    const rec = JSON.parse(localStorage.getItem('s4_profile')||'null');
+    if(!rec || !rec.done) return;
+    Object.assign(PROFILE, rec);
+    /* prefill onboarding so "Tap to edit" shows their saved choices */
+    document.getElementById('onb-name').value = PROFILE.name || '';
+    const mark=(sel,vals)=>[...document.querySelectorAll(sel)].forEach(b=>{ if(vals.includes(b.textContent)) b.classList.add('on'); });
+    mark('#onb-role .onb-chip', PROFILE.roles||[]);
+    mark('#onb-ind .onb-chip', PROFILE.inds||[]);
+    mark('#onb-goals .onb-chip', PROFILE.goals||[]);
+    if(PROFILE.photo){
+      const ph=document.getElementById('onb-photo');
+      ph.style.backgroundImage=`url(${PROFILE.photo})`; ph.classList.add('set');
+    }
+    moldUniverse();
+  }catch(e){}
+}
+loadProfile();
 
 function moldUniverse(){
   const p = PROFILE;

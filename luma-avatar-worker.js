@@ -5,12 +5,12 @@
  * image model with a locked cartoon-style prompt and returns the drawing.
  * The OpenAI API key lives ONLY here (Worker secret), never in the page.
  *
- * Deploy (once):
- *   1. dash.cloudflare.com → Workers & Pages → Create → Worker → paste this file.
- *   2. Worker → Settings → Variables and Secrets → Add → type "Secret",
- *      name OPENAI_API_KEY, value = your OpenAI key → Deploy.
- *   3. Copy the worker URL (https://<name>.<account>.workers.dev) into
- *      AVATAR_API_URL in the AiVerse index.html.
+ * Deployed as: s4-aiverse-avatarcreator (Rob's account)
+ * Secrets: OPENAI_API_KEY (add in Settings, then re-deploy from the editor to attach).
+ * Bindings: AVATAR_LIMIT → KV namespace "avatar-rate-limit" (rate limiting).
+ * GET the worker URL = health check: {ok, hasKey, keys}.
+ * Rate limit: 2 AI avatars per IP per rolling hour, counted only on successful
+ * draws; window auto-resets 1h after the first draw. 429 + minutes-left when hit.
  */
 
 const STYLE_PROMPT =
@@ -29,6 +29,9 @@ const ALLOWED_ORIGINS = [
   "http://127.0.0.1",
   "null", // file:// testing
 ];
+
+const RATE_LIMIT = 2;          /* AI avatars per IP... */
+const WINDOW_MS = 60 * 60 * 1000; /* ...per hour, auto-reset after the window */
 
 const okOrigin = (o) => ALLOWED_ORIGINS.some((a) => (o || "").startsWith(a)) || o === "null";
 
@@ -51,7 +54,21 @@ export default {
   async fetch(req, env) {
     const cors = corsHeaders(req.headers.get("Origin"));
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    if (req.method !== "POST") return json({ error: "POST only" }, 405, cors);
+    if (req.method !== "POST")
+      return json({ ok: true, hasKey: !!env.OPENAI_API_KEY, keys: Object.keys(env) }, 200, cors);
+
+    /* ---- rate limit: RATE_LIMIT successful draws per IP per WINDOW_MS ---- */
+    const ip = req.headers.get("CF-Connecting-IP") || "unknown";
+    const rlKey = "rl:" + ip;
+    let rec = null;
+    try { rec = JSON.parse((await env.AVATAR_LIMIT.get(rlKey)) || "null"); } catch (_) {}
+    const now = Date.now();
+    if (!rec || now > rec.reset) rec = { n: 0, reset: now + WINDOW_MS };
+    if (rec.n >= RATE_LIMIT) {
+      const mins = Math.max(1, Math.ceil((rec.reset - now) / 60000));
+      return json({ error: "rate_limit", minutesLeft: mins,
+        message: `Avatar limit reached (${RATE_LIMIT}/hour). Try again in ~${mins} min.` }, 429, cors);
+    }
     if (!okOrigin(req.headers.get("Origin"))) return json({ error: "origin not allowed" }, 403, cors);
 
     try {
@@ -78,6 +95,9 @@ export default {
       const data = await r.json();
       if (!r.ok) return json({ error: data?.error?.message || "image model error" }, 502, cors);
 
+      rec.n += 1;   /* count only successful draws */
+      await env.AVATAR_LIMIT.put(rlKey, JSON.stringify(rec),
+        { expirationTtl: Math.ceil((rec.reset - now) / 1000) + 120 });
       return json({ image: "data:image/png;base64," + data.data[0].b64_json }, 200, cors);
     } catch (e) {
       return json({ error: String(e) }, 500, cors);
